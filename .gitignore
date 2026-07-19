@@ -203,6 +203,9 @@ cython_debug/
 # Temporary file for partial code execution
 tempCodeRunnerFile.py
 
+# Temporary Git commit message file
+tmp/commit_msg.tmp
+
 # Ruff stuff:
 .ruff_cache/
 
