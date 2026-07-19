@@ -1,8 +1,11 @@
-"""Unit tests for the framework-free demo step model and flatten()."""
+"""Unit tests for the framework-free demo step model, flatten(), and localize_script()."""
+
+import pytest
 
 from automated_screenshot_connector.steps import (
     SCREENSHOT_SETTLE_MS,
     Command,
+    DemoScript,
     InsertChar,
     Pause,
     PressReturn,
@@ -11,6 +14,7 @@ from automated_screenshot_connector.steps import (
     TypeText,
     Wait,
     flatten,
+    localize_script,
 )
 
 
@@ -40,3 +44,36 @@ def test_screenshot_settles_before_sending() -> None:
 def test_steps_flatten_in_order() -> None:
     actions = flatten((TypeText("2"), Pause(0.1), Screenshot("s")))
     assert [a for _, a in actions] == [InsertChar("2"), Wait(), SendScreenshot("s")]
+
+
+LOCALIZABLE = DemoScript(
+    id=1,
+    name="demo",
+    steps=(
+        TypeText("{price} = 20\n", char_delay_ms=42),
+        Pause(0.5),
+        Command("/{cmd}"),
+        Screenshot("still-{price}"),
+    ),
+)
+
+
+def test_localize_script_substitutes_typetext_and_command() -> None:
+    script = localize_script(LOCALIZABLE, {"price": "preis", "cmd": "clear"})
+    assert script.steps[0] == TypeText("preis = 20\n", char_delay_ms=42)
+    assert script.steps[2] == Command("/clear")
+
+
+def test_localize_script_leaves_pause_and_screenshot_untouched() -> None:
+    script = localize_script(LOCALIZABLE, {"price": "preis", "cmd": "clear"})
+    assert script.steps[1] == Pause(0.5)
+    assert script.steps[3] == Screenshot("still-{price}")
+
+
+def test_localize_script_empty_texts_returns_script_unchanged() -> None:
+    assert localize_script(LOCALIZABLE, {}) is LOCALIZABLE
+
+
+def test_localize_script_missing_placeholder_raises_value_error() -> None:
+    with pytest.raises(ValueError, match="cmd"):
+        localize_script(LOCALIZABLE, {"price": "preis"})

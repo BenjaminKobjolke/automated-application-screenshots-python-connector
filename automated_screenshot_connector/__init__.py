@@ -22,6 +22,7 @@ from automated_screenshot_connector.steps import (
     TypeText,
     Wait,
     flatten,
+    localize_script,
 )
 
 __all__ = [
@@ -41,5 +42,6 @@ __all__ = [
     "TypeText",
     "Wait",
     "flatten",
+    "localize_script",
     "parse_demo_args",
 ]

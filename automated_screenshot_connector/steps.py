@@ -6,6 +6,7 @@ timed actions a player executes one timer shot at a time.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 DEFAULT_CHAR_DELAY_MS = 60
@@ -53,6 +54,31 @@ class DemoScript:
     id: int
     name: str
     steps: tuple[Step, ...]
+
+
+def localize_script(script: DemoScript, texts: Mapping[str, str]) -> DemoScript:
+    """Fill ``{placeholder}``s in TypeText/Command steps from ``texts``.
+
+    Empty ``texts`` returns the script unchanged, so non-localized demos and
+    manual runs (no --automation-demo-texts) keep working. Screenshot names
+    are never localized — they must stay stable filenames.
+    """
+    if not texts:
+        return script
+    steps: list[Step] = []
+    for step in script.steps:
+        try:
+            if isinstance(step, TypeText):
+                step = TypeText(step.text.format(**texts), step.char_delay_ms)
+            elif isinstance(step, Command):
+                step = Command(step.line.format(**texts))
+        except (KeyError, IndexError) as e:
+            raise ValueError(
+                f"Demo '{script.name}': no text for placeholder {e} "
+                f"(available: {', '.join(sorted(texts))})"
+            ) from e
+        steps.append(step)
+    return DemoScript(id=script.id, name=script.name, steps=tuple(steps))
 
 
 # --- atomic actions a player executes ---------------------------------------

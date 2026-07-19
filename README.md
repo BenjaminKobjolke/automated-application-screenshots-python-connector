@@ -10,9 +10,9 @@ a typing player and deterministic demo settings.
 
 | Module | Needs | Purpose |
 |---|---|---|
-| `automated_screenshot_connector.steps` | stdlib | Step model (`TypeText`, `Pause`, `Command`, `Screenshot`), `DemoScript`, `flatten` scheduler |
+| `automated_screenshot_connector.steps` | stdlib | Step model (`TypeText`, `Pause`, `Command`, `Screenshot`), `DemoScript`, `flatten` scheduler, `localize_script` (fills `{placeholder}`s from the `--automation-demo-texts` JSON) |
 | `automated_screenshot_connector.client` | stdlib | `DemoClient` — sends `demo_started`/`screenshot`/`demo_ended` JSON events; no-op without a port |
-| `automated_screenshot_connector.args` | stdlib | `parse_demo_args(argv) -> (DemoOptions, leftover_args)` — consumes only `--automation-demo*` options |
+| `automated_screenshot_connector.args` | stdlib | `parse_demo_args(argv) -> (DemoOptions, leftover_args)` — consumes only `--automation-demo*` options, incl. `--automation-demo-language` (per-run UI language, `options.demo_language`) |
 | `automated_screenshot_connector.qt` | PySide6 (yours) | `DemoPlayer` (types into a `QPlainTextEdit` via QTimer chain) + `prepare_demo_settings` (wiped temp-INI QSettings namespace, seeds the pairs loaded from `--automation-demo-settings`) |
 
 The library has **no runtime dependencies**. `qt` imports PySide6 only when

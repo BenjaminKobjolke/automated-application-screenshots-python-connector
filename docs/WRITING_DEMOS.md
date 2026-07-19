@@ -51,6 +51,18 @@ DEMOS: dict[int, DemoScript] = {
 - **Appearance settings don't belong in scripts.** Font size, theme, window
   size come from the tool config (`app_settings`, `width`/`height`) so the same
   script records correctly everywhere.
+- **Language is a run parameter, not script content.** When the tool config
+  lists demo `languages`, each run gets `--automation-demo-language <lang>`;
+  read it from `options.demo_language` and set your app's UI language before
+  building the window. One script records once per language.
+- **Localize typed text with placeholders.** Write `TypeText("{price} = 20\n")`
+  and keep the wording in one JSON file per language (tool config `texts_dir`,
+  delivered as `--automation-demo-texts <path>`). Apply it with
+  `localize_script(DEMOS[options.demo], dict(options.demo_texts))` before
+  handing the script to the player. Empty texts leave the script unchanged;
+  literal braces need `{{`/`}}`; `Screenshot` names are never localized.
+  Manual preview: pass `--automation-demo-texts path/to/de.json` yourself —
+  without it, placeholders are typed literally.
 - **Test your registry**: unique ids, `script.id == dict key`, non-empty steps,
   known commands — cheap tests that catch broken demos before a recording run.
 
