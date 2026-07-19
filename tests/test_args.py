@@ -1,8 +1,16 @@
 """Unit tests for the automation-demo command-line parsing."""
 
+import json
+
 import pytest
 
 from automated_screenshot_connector.args import parse_demo_args
+
+
+def write_settings(tmp_path, data) -> str:
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return str(path)
 
 
 def test_defaults_without_args() -> None:
@@ -46,31 +54,39 @@ def test_app_own_args_are_returned_untouched() -> None:
     assert rest == ["--my-flag", "positional"]
 
 
-def test_demo_settings_single_and_repeated() -> None:
-    options, _ = parse_demo_args(
-        [
-            "--automation-demo",
-            "1",
-            "--automation-demo-set",
-            "editor/font_point_size=18",
-            "--automation-demo-set",
-            "window/theme=dark",
-        ]
-    )
+def test_demo_settings_loaded_from_json_file(tmp_path) -> None:
+    path = write_settings(tmp_path, {"editor/font_point_size": 18, "window/theme": "dark"})
+    options, _ = parse_demo_args(["--automation-demo", "1", "--automation-demo-settings", path])
     assert options.demo_settings == (
         ("editor/font_point_size", "18"),
         ("window/theme", "dark"),
     )
 
 
-def test_demo_settings_value_may_contain_equals() -> None:
-    options, _ = parse_demo_args(["--automation-demo", "1", "--automation-demo-set", "k=a=b"])
-    assert options.demo_settings == (("k", "a=b"),)
-
-
-def test_demo_settings_without_equals_errors() -> None:
+def test_demo_settings_missing_file_errors(tmp_path) -> None:
     with pytest.raises(SystemExit):
-        parse_demo_args(["--automation-demo", "1", "--automation-demo-set", "no-equals-here"])
+        parse_demo_args(
+            ["--automation-demo", "1", "--automation-demo-settings", str(tmp_path / "nope.json")]
+        )
+
+
+def test_demo_settings_non_object_json_errors(tmp_path) -> None:
+    path = write_settings(tmp_path, ["not", "an", "object"])
+    with pytest.raises(SystemExit):
+        parse_demo_args(["--automation-demo", "1", "--automation-demo-settings", path])
+
+
+def test_demo_settings_invalid_json_errors(tmp_path) -> None:
+    path = tmp_path / "bad.json"
+    path.write_text("{not json", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        parse_demo_args(["--automation-demo", "1", "--automation-demo-settings", str(path)])
+
+
+def test_settings_file_without_demo_errors(tmp_path) -> None:
+    path = write_settings(tmp_path, {"a": "b"})
+    with pytest.raises(SystemExit):
+        parse_demo_args(["--automation-demo-settings", path])
 
 
 @pytest.mark.parametrize(
@@ -79,7 +95,6 @@ def test_demo_settings_without_equals_errors() -> None:
         ["--automation-demo-port", "5000"],
         ["--automation-demo-width", "640"],
         ["--automation-demo-height", "420"],
-        ["--automation-demo-set", "a=b"],
     ],
 )
 def test_demo_options_without_demo_error(argv: list[str]) -> None:
