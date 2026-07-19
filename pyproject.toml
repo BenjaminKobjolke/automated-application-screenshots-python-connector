@@ -1,0 +1,43 @@
+[project]
+name = "automated-screenshot-connector"
+version = "0.1.0"
+description = "App-side connector for the automated-application-screenshots demo recording tool: step model, socket client, CLI args, and an optional Qt typing player."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["automated_screenshot_connector"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+ignore_missing_imports = true
+
+# PySide6 is intentionally absent from this repo's venv (apps bring their own);
+# without stubs QObject resolves to Any. Consuming apps type-check qt.py with
+# the real PySide6 (e.g. FastCalculator's strict mypy run).
+[[tool.mypy.overrides]]
+module = "automated_screenshot_connector.qt"
+disallow_subclassing_any = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
