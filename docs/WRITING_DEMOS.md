@@ -1,7 +1,7 @@
 # Writing demo scripts
 
-A demo is a `DemoScript` built from four step types, registered in your app as
-`DEMOS: dict[int, DemoScript]`. The recording tool selects one by id via
+A demo is a `DemoScript` built from the step types below, registered in your app
+as `DEMOS: dict[int, DemoScript]`. The recording tool selects one by id via
 `--automation-demo <id>`.
 
 ```python
@@ -33,6 +33,40 @@ DEMOS: dict[int, DemoScript] = {
 | `Pause(seconds)` | Does nothing — reading time for viewers. |
 | `Command(line)` | Types the full line, then posts a real Return key event so your widget's `keyPressEvent` handles it (commands, submit, etc.). |
 | `Screenshot(name)` | Waits 400 ms for the UI to settle, then asks the tool to save `<name>.png`. |
+| `PressKey(chord, delay_ms=60)` | Presses a key chord (`"Ctrl+Shift+P"`, `"Down"`, `"Return"`, `"Escape"`, …), parsed with `QKeySequence`. Only executed by `KeyEventDemoPlayer`. |
+
+## Two players
+
+- **`DemoPlayer(input_edit, client, script, hwnd)`** — the original typing
+  player for apps with one `QPlainTextEdit` input (e.g. FastCalculator).
+  `TypeText` inserts via the text cursor; `PressKey` is not supported.
+- **`KeyEventDemoPlayer(window, client, script, hwnd)`** — for shortcut-driven
+  apps (command palettes, modal search dialogs; e.g. FastFileViewer). Every
+  `TypeText` char and `PressKey` chord is posted as a real `QKeyEvent` to
+  `QApplication.focusWidget()`, so modal `exec()` dialogs receive input too
+  (QTimers keep firing inside nested modal loops).
+
+`KeyEventDemoPlayer` is extensible: any step type `flatten` doesn't know is
+delivered to `handle_step(step)` — subclass it for app-specific steps:
+
+```python
+class ViewerDemoPlayer(KeyEventDemoPlayer):
+    def handle_step(self, step: object) -> None:
+        if isinstance(step, OpenFile):          # app-defined dataclass
+            self._window.open_pdf(step.path())
+            return
+        super().handle_step(step)               # raises on unknown steps
+```
+
+Two hard-won gotchas for `KeyEventDemoPlayer` apps:
+
+- **Set the demo window size AFTER `show()`** (and prefer `setFixedSize`): the
+  first show pass can re-lay the window out to Qt's screen-derived default and
+  discard a pre-show `resize()`; later UI appearing (e.g. a status bar) can
+  grow the window and drift the recording off the configured aspect ratio.
+- **Leave the app closable without prompts**: if a demo mutates a document,
+  discard pending changes in the player's finish hook — otherwise the
+  end-of-demo quit blocks on an unsaved-changes dialog.
 
 ## Guidelines
 

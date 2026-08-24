@@ -3,13 +3,17 @@
 import pytest
 
 from automated_screenshot_connector.steps import (
+    DEFAULT_CHAR_DELAY_MS,
     SCREENSHOT_SETTLE_MS,
     Command,
+    CustomStep,
     DemoScript,
     InsertChar,
     Pause,
+    PressKey,
     PressReturn,
     Screenshot,
+    SendKey,
     SendScreenshot,
     TypeText,
     Wait,
@@ -39,6 +43,21 @@ def test_command_types_chars_then_presses_return() -> None:
 
 def test_screenshot_settles_before_sending() -> None:
     assert flatten((Screenshot("shot"),)) == [(SCREENSHOT_SETTLE_MS, SendScreenshot("shot"))]
+
+
+def test_press_key_becomes_send_key() -> None:
+    assert flatten((PressKey("Ctrl+Shift+P"),)) == [
+        (DEFAULT_CHAR_DELAY_MS, SendKey("Ctrl+Shift+P"))
+    ]
+    assert flatten((PressKey("Down", delay_ms=200),)) == [(200, SendKey("Down"))]
+
+
+def test_unknown_step_becomes_custom_step() -> None:
+    class OpenFile:
+        pass
+
+    step = OpenFile()
+    assert flatten((step,)) == [(DEFAULT_CHAR_DELAY_MS, CustomStep(step))]  # type: ignore[arg-type]
 
 
 def test_steps_flatten_in_order() -> None:

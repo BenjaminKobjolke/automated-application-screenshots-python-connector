@@ -12,15 +12,17 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QEvent, QObject, QSettings, Qt, QTimer
-from PySide6.QtGui import QKeyEvent
-from PySide6.QtWidgets import QApplication, QPlainTextEdit
+from PySide6.QtGui import QKeyEvent, QKeySequence
+from PySide6.QtWidgets import QApplication, QPlainTextEdit, QWidget
 
 from automated_screenshot_connector.client import DemoClient
 from automated_screenshot_connector.steps import (
     Action,
+    CustomStep,
     DemoScript,
     InsertChar,
     PressReturn,
+    SendKey,
     SendScreenshot,
     flatten,
 )
@@ -110,6 +112,101 @@ class DemoPlayer(QObject):
         # A real key event so the widget's keyPressEvent runs (commands etc.)
         event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
         QApplication.postEvent(self._input, event)
+
+    def _finish(self) -> None:
+        self._client.send_ended(self._script.id)
+        self._client.close()
+        instance = QApplication.instance()
+        if instance is not None:
+            QTimer.singleShot(END_HOLD_MS, instance.quit)
+
+
+class KeyEventDemoPlayer(QObject):
+    """Plays a DemoScript by posting real key events to the focused widget.
+
+    For shortcut-driven apps (command palettes, search dialogs, viewers):
+    TypeText chars and PressKey chords arrive as QKeyEvents at
+    ``QApplication.focusWidget()``, so modal ``exec()`` dialogs receive them
+    too — QTimers keep firing inside nested modal event loops.
+
+    Subclass and override ``handle_step`` to execute app-specific steps; any
+    step type ``flatten`` doesn't know arrives there wrapped unchanged.
+    """
+
+    def __init__(
+        self,
+        window: QWidget,
+        client: DemoClient,
+        script: DemoScript,
+        hwnd: int | None,
+    ) -> None:
+        super().__init__(window)
+        self._window = window
+        self._client = client
+        self._script = script
+        self._hwnd = hwnd
+        self._actions = flatten(script.steps)
+        self._index = 0
+
+    def start(self) -> None:
+        QTimer.singleShot(START_DELAY_MS, self._begin)
+
+    def handle_step(self, step: object) -> None:
+        """Execute an app-defined step. Default: unknown steps are an error."""
+        raise ValueError(f"Unhandled demo step: {step!r}")
+
+    def _begin(self) -> None:
+        self._client.send_started(self._script.id, self._hwnd)
+        self._advance()
+
+    def _advance(self) -> None:
+        if self._index >= len(self._actions):
+            self._finish()
+            return
+        delay, action = self._actions[self._index]
+        self._index += 1
+        QTimer.singleShot(delay, lambda: self._execute(action))
+
+    def _execute(self, action: Action) -> None:
+        if isinstance(action, InsertChar):
+            self._send_char(action.char)
+        elif isinstance(action, PressReturn):
+            self._send_chord("Return")
+        elif isinstance(action, SendKey):
+            self._send_chord(action.chord)
+        elif isinstance(action, SendScreenshot):
+            self._client.send_screenshot(action.name)
+        elif isinstance(action, CustomStep):
+            self.handle_step(action.step)
+        # Wait: the delay already happened in the timer.
+        self._advance()
+
+    def _target(self) -> QWidget:
+        return QApplication.focusWidget() or self._window
+
+    def _send_char(self, ch: str) -> None:
+        # Real press+release with the char as text, so line edits and views
+        # react exactly as to human typing (live filtering included).
+        target = self._target()
+        seq = QKeySequence(ch.upper())
+        key = Qt.Key(seq[0].key()) if seq.count() else Qt.Key.Key_unknown
+        QApplication.postEvent(
+            target, QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier, ch)
+        )
+        QApplication.postEvent(
+            target, QKeyEvent(QEvent.Type.KeyRelease, key, Qt.KeyboardModifier.NoModifier, ch)
+        )
+
+    def _send_chord(self, chord: str) -> None:
+        seq = QKeySequence.fromString(chord)
+        if seq.count() != 1:
+            raise ValueError(f"Not a single key chord: {chord!r}")
+        combo = seq[0]
+        key = Qt.Key(combo.key())
+        mods = combo.keyboardModifiers()
+        target = self._target()
+        QApplication.postEvent(target, QKeyEvent(QEvent.Type.KeyPress, key, mods))
+        QApplication.postEvent(target, QKeyEvent(QEvent.Type.KeyRelease, key, mods))
 
     def _finish(self) -> None:
         self._client.send_ended(self._script.id)

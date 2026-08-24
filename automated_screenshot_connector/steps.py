@@ -44,7 +44,19 @@ class Screenshot:
     name: str
 
 
-Step = TypeText | Pause | Command | Screenshot
+@dataclass(frozen=True)
+class PressKey:
+    """Press a key chord like "Ctrl+Shift+P", "Down", "Return" or "Escape".
+
+    The chord is parsed with QKeySequence, so any portable Qt shortcut string
+    works. Executed by KeyEventDemoPlayer (not the QPlainTextEdit DemoPlayer).
+    """
+
+    chord: str
+    delay_ms: int = DEFAULT_CHAR_DELAY_MS
+
+
+Step = TypeText | Pause | Command | Screenshot | PressKey
 
 
 @dataclass(frozen=True)
@@ -104,7 +116,19 @@ class Wait:
     pass
 
 
-Action = InsertChar | PressReturn | SendScreenshot | Wait
+@dataclass(frozen=True)
+class SendKey:
+    chord: str
+
+
+@dataclass(frozen=True)
+class CustomStep:
+    """An app-defined step flatten doesn't know; players dispatch it themselves."""
+
+    step: object
+
+
+Action = InsertChar | PressReturn | SendScreenshot | Wait | SendKey | CustomStep
 
 
 def flatten(steps: tuple[Step, ...]) -> list[tuple[int, Action]]:
@@ -118,6 +142,10 @@ def flatten(steps: tuple[Step, ...]) -> list[tuple[int, Action]]:
         elif isinstance(step, Command):
             actions.extend((DEFAULT_CHAR_DELAY_MS, InsertChar(c)) for c in step.line)
             actions.append((DEFAULT_CHAR_DELAY_MS, PressReturn()))
-        else:
+        elif isinstance(step, PressKey):
+            actions.append((step.delay_ms, SendKey(step.chord)))
+        elif isinstance(step, Screenshot):
             actions.append((SCREENSHOT_SETTLE_MS, SendScreenshot(step.name)))
+        else:
+            actions.append((DEFAULT_CHAR_DELAY_MS, CustomStep(step)))
     return actions
