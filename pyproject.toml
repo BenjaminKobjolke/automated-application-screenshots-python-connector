@@ -1,7 +1,7 @@
 [project]
 name = "automated-screenshot-connector"
-version = "0.5.0"
-description = "App-side connector for the automated-application-screenshots demo recording tool: step model, socket client, CLI args, and an optional Qt typing player."
+version = "0.6.0"
+description = "App-side connector for the automated-application-screenshots demo recording tool: step model, demo registry, socket client, CLI args, and optional Qt players (PySide6 or PyQt5)."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
@@ -32,9 +32,9 @@ python_version = "3.10"
 strict = true
 ignore_missing_imports = true
 
-# PySide6 is intentionally absent from this repo's venv (apps bring their own);
-# without stubs QObject resolves to Any. Consuming apps type-check qt.py with
-# the real PySide6 (e.g. FastCalculator's strict mypy run).
+# No Qt binding is installed in this repo's venv (apps bring their own); without
+# stubs QObject resolves to Any. Consuming apps type-check qt.py against their
+# real binding (e.g. FastCalculator's strict mypy run).
 [[tool.mypy.overrides]]
 module = "automated_screenshot_connector.qt"
 disallow_subclassing_any = false

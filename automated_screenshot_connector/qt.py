@@ -1,7 +1,8 @@
-"""Qt integration: the typing DemoPlayer and demo-settings bootstrap.
+"""Qt integration: the two demo players and the demo-settings bootstrap.
 
-Importing this module requires PySide6 (which a Qt app already has); the rest
-of the library stays stdlib-only for non-Qt apps.
+Importing this module requires a Qt binding - PySide6 or PyQt5, whichever the
+app already has (see ``_qtbind``). The rest of the library stays stdlib-only
+for non-Qt apps.
 """
 
 from __future__ import annotations
@@ -10,13 +11,27 @@ import shutil
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
-from PySide6.QtCore import QCoreApplication, QEvent, QObject, QSettings, Qt, QTimer
-from PySide6.QtGui import QKeyEvent, QKeySequence
-from PySide6.QtWidgets import QApplication, QPlainTextEdit, QWidget
-
+from automated_screenshot_connector._qtbind import (
+    QApplication,
+    QCoreApplication,
+    QEvent,
+    QKeyEvent,
+    QKeySequence,
+    QObject,
+    QPlainTextEdit,
+    QSettings,
+    Qt,
+    QTimer,
+    QWidget,
+    key_of,
+    split_combo,
+)
 from automated_screenshot_connector.client import DemoClient
 from automated_screenshot_connector.steps import (
+    END_HOLD_MS,
+    START_DELAY_MS,
     Action,
     CustomStep,
     DemoScript,
@@ -27,10 +42,15 @@ from automated_screenshot_connector.steps import (
     flatten,
 )
 
-# Give the window one moment to finish first paint before typing starts.
-START_DELAY_MS = 500
-# Keep the finished state on screen briefly so the recording doesn't end abruptly.
-END_HOLD_MS = 1000
+# START_DELAY_MS/END_HOLD_MS are re-exported: they belong to the players, but
+# live in steps.py so estimated_duration can count them without importing Qt.
+__all__ = [
+    "END_HOLD_MS",
+    "START_DELAY_MS",
+    "DemoPlayer",
+    "KeyEventDemoPlayer",
+    "prepare_demo_settings",
+]
 
 
 def prepare_demo_settings(app_name: str, settings: Iterable[tuple[str, str]]) -> None:
@@ -41,9 +61,9 @@ def prepare_demo_settings(app_name: str, settings: Iterable[tuple[str, str]]) ->
     creating the QApplication and before building the main window.
 
     Args:
-        app_name: Demo application name (e.g. "MyApp-Demo") — also names the
+        app_name: Demo application name (e.g. "MyApp-Demo") - also names the
             temp settings folder.
-        settings: (QSettings key, value) pairs from --automation-demo-set.
+        settings: (QSettings key, value) pairs from --automation-demo-settings.
     """
     settings_dir = Path(tempfile.gettempdir()) / f"{app_name.lower()}-settings"
     shutil.rmtree(settings_dir, ignore_errors=True)
@@ -127,7 +147,7 @@ class KeyEventDemoPlayer(QObject):
     For shortcut-driven apps (command palettes, search dialogs, viewers):
     TypeText chars and PressKey chords arrive as QKeyEvents at
     ``QApplication.focusWidget()``, so modal ``exec()`` dialogs receive them
-    too — QTimers keep firing inside nested modal event loops.
+    too - QTimers keep firing inside nested modal event loops.
 
     Subclass and override ``handle_step`` to execute app-specific steps; any
     step type ``flatten`` doesn't know arrives there wrapped unchanged.
@@ -147,6 +167,7 @@ class KeyEventDemoPlayer(QObject):
         self._hwnd = hwnd
         self._actions = flatten(script.steps)
         self._index = 0
+        self._check_chords()
 
     def start(self) -> None:
         QTimer.singleShot(START_DELAY_MS, self._begin)
@@ -154,6 +175,12 @@ class KeyEventDemoPlayer(QObject):
     def handle_step(self, step: object) -> None:
         """Execute an app-defined step. Default: unknown steps are an error."""
         raise ValueError(f"Unhandled demo step: {step!r}")
+
+    def _check_chords(self) -> None:
+        """Reject an unparsable chord now, not minutes into a recording."""
+        for _, action in self._actions:
+            if isinstance(action, SendKey):
+                self._parse_chord(action.chord)
 
     def _begin(self) -> None:
         self._client.send_started(self._script.id, self._hwnd)
@@ -185,28 +212,24 @@ class KeyEventDemoPlayer(QObject):
         return QApplication.focusWidget() or self._window
 
     def _send_char(self, ch: str) -> None:
-        # Real press+release with the char as text, so line edits and views
-        # react exactly as to human typing (live filtering included).
-        target = self._target()
-        seq = QKeySequence(ch.upper())
-        key = Qt.Key(seq[0].key()) if seq.count() else Qt.Key.Key_unknown
-        QApplication.postEvent(
-            target, QKeyEvent(QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier, ch)
-        )
-        QApplication.postEvent(
-            target, QKeyEvent(QEvent.Type.KeyRelease, key, Qt.KeyboardModifier.NoModifier, ch)
-        )
+        # Real press+release carrying the char as text, so line edits and
+        # views react exactly as to human typing (live filtering included).
+        key = key_of(QKeySequence(ch.upper()))
+        self._post(self._target(), key, Qt.KeyboardModifier.NoModifier, ch)
 
-    def _send_chord(self, chord: str) -> None:
+    def _parse_chord(self, chord: str) -> tuple[Any, Any]:
         seq = QKeySequence.fromString(chord)
         if seq.count() != 1:
             raise ValueError(f"Not a single key chord: {chord!r}")
-        combo = seq[0]
-        key = Qt.Key(combo.key())
-        mods = combo.keyboardModifiers()
-        target = self._target()
-        QApplication.postEvent(target, QKeyEvent(QEvent.Type.KeyPress, key, mods))
-        QApplication.postEvent(target, QKeyEvent(QEvent.Type.KeyRelease, key, mods))
+        return split_combo(seq)
+
+    def _send_chord(self, chord: str) -> None:
+        key, mods = self._parse_chord(chord)
+        self._post(self._target(), key, mods)
+
+    def _post(self, target: QWidget, key: Any, mods: Any, text: str = "") -> None:
+        QApplication.postEvent(target, QKeyEvent(QEvent.Type.KeyPress, key, mods, text))
+        QApplication.postEvent(target, QKeyEvent(QEvent.Type.KeyRelease, key, mods, text))
 
     def _finish(self) -> None:
         self._client.send_ended(self._script.id)

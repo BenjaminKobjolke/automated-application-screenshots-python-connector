@@ -1,7 +1,7 @@
 # Writing demo scripts
 
 A demo is a `DemoScript` built from the step types below, registered in your app
-as `DEMOS: dict[int, DemoScript]`. The recording tool selects one by id via
+in a `DemoRegistry`. The recording tool selects one by id via
 `--automation-demo <id>`.
 
 ```python
@@ -25,6 +25,61 @@ DEMOS: dict[int, DemoScript] = {
 }
 ```
 
+## Registering demos
+
+`DemoRegistry` is the lookup the tool's `--automation-demo <id>` resolves
+against. It exists so every app stops writing the same dict, the same
+"unknown id" error and the same special case for generated demos:
+
+```python
+from automated_screenshot_connector import DemoRegistry
+
+REGISTRY = DemoRegistry()
+REGISTRY.add_all(DEMOS)                                    # id -> DemoScript
+REGISTRY.add_factory(2, "themes", build_themes_script)     # built on demand
+
+script = REGISTRY.get(options.demo, names=installed_themes())
+```
+
+- `add(*scripts)` / `add_all(dict)` register finished scripts; a duplicate id is
+  rejected at registration, not discovered during a recording.
+- `add_factory(id, name, factory)` registers a demo **built at lookup time**.
+  This is what keeps a generated demo honest: one `Screenshot` per installed
+  theme, plugin or locale stays complete without anyone editing a list when one
+  is added. The factory must return a script whose `id` matches, or the tool
+  would file the frames under the wrong demo.
+- `get(id, **params)` passes `params` to a factory and ignores them for a
+  finished script, so you can pass the same ones for every id. An unknown id
+  raises `UnknownDemoError`, whose message already lists the available ids —
+  print it and exit.
+- `ids()` and `name_of(id)` answer "what can this app record?" without building
+  anything.
+
+## Integrating demo mode
+
+Five things every app has to get right, and each one is invisible until it
+ruins a take:
+
+1. **Detect the flag before anything else initializes.** Sniff raw `sys.argv`
+   for `--automation-demo` at the top of your entry point — earlier than
+   argparse, config loading or single-instance handling.
+2. **Bypass single-instance forwarding.** If an instance is already running,
+   the usual "forward the arguments and exit" path swallows the demo launch and
+   the tool records the wrong window (or times out).
+3. **Suppress onboarding.** First-run tours, changelog popups, update prompts
+   and tip-of-the-day dialogs all appear on camera. Gate them on a demo-mode
+   flag.
+4. **Pin every visual state the script depends on** — window opacity, zoom,
+   sidebar visibility. Force the value; never read it from the user's profile,
+   or a re-recording will not match the first take.
+5. **Hand the rest of argv back to your app.** `parse_demo_args` consumes only
+   `--automation-demo*` and returns the leftovers; assign them back
+   (`sys.argv[1:] = leftover`) if any of your code reads raw argv.
+
+Size and position: `showNormal()`, then `resize(demo_width, demo_height)`, then
+centre — that order defeats both maximize-on-first-run and remembered geometry.
+See also the `KeyEventDemoPlayer` size gotcha below.
+
 ## Step types
 
 | Step | What it does |
@@ -45,6 +100,15 @@ DEMOS: dict[int, DemoScript] = {
   `TypeText` char and `PressKey` chord is posted as a real `QKeyEvent` to
   `QApplication.focusWidget()`, so modal `exec()` dialogs receive input too
   (QTimers keep firing inside nested modal loops).
+
+Both players work with **PySide6 or PyQt5** — whichever your app already
+has. The two bindings disagree on exactly one thing (how a `QKeySequence`
+combination unpacks), which `_qtbind` handles, so there is no reason to
+fork the player.
+
+`KeyEventDemoPlayer` validates every `PressKey` chord in its constructor, so
+a typo like `"Ctrl+Nope"` fails in the first second instead of five minutes
+into a recording.
 
 `KeyEventDemoPlayer` is extensible: any step type `flatten` doesn't know is
 delivered to `handle_step(step)` — subclass it for app-specific steps:
@@ -97,6 +161,11 @@ Two hard-won gotchas for `KeyEventDemoPlayer` apps:
   literal braces need `{{`/`}}`; `Screenshot` names are never localized.
   Manual preview: pass `--automation-demo-texts path/to/de.json` yourself —
   without it, placeholders are typed literally.
+- **Check the length before you record.** `estimated_duration(script)`
+  returns the seconds a script will take without running it (delays plus the
+  player's start delay and end hold). The tool aborts a demo at 300 s, and
+  gives up after 60 s with no event — a script that estimates near either is
+  a script to split.
 - **Test your registry**: unique ids, `script.id == dict key`, non-empty steps,
   known commands — cheap tests that catch broken demos before a recording run.
 

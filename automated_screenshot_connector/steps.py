@@ -13,6 +13,12 @@ DEFAULT_CHAR_DELAY_MS = 60
 # Delay before a screenshot so the UI has settled from the previous action
 # (>= the recording tool's frame interval).
 SCREENSHOT_SETTLE_MS = 400
+# Give the window one moment to finish first paint before the demo starts.
+START_DELAY_MS = 500
+# Keep the finished state on screen briefly so the recording doesn't end
+# abruptly. Both live here rather than in qt.py so estimated_duration can
+# count them without importing Qt.
+END_HOLD_MS = 1000
 
 
 @dataclass(frozen=True)
@@ -149,3 +155,14 @@ def flatten(steps: tuple[Step, ...]) -> list[tuple[int, Action]]:
         else:
             actions.append((DEFAULT_CHAR_DELAY_MS, CustomStep(step)))
     return actions
+
+
+def estimated_duration(script: DemoScript) -> float:
+    """Seconds the script will take to play, without running it.
+
+    The scheduled delays plus the player's start delay and end hold. Lets a
+    demo be checked against the recording tool's run cap (and its no-event
+    watchdog, by eyeballing the gaps) before spending a take on it.
+    """
+    delays = sum(delay for delay, _ in flatten(script.steps))
+    return (START_DELAY_MS + delays + END_HOLD_MS) / 1000

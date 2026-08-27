@@ -17,6 +17,7 @@ from automated_screenshot_connector.steps import (
     SendScreenshot,
     TypeText,
     Wait,
+    estimated_duration,
     flatten,
     localize_script,
 )
@@ -96,3 +97,17 @@ def test_localize_script_empty_texts_returns_script_unchanged() -> None:
 def test_localize_script_missing_placeholder_raises_value_error() -> None:
     with pytest.raises(ValueError, match="cmd"):
         localize_script(LOCALIZABLE, {"price": "preis"})
+
+
+def test_estimated_duration_counts_delays_and_the_player_hold():
+    demo = DemoScript(
+        id=1,
+        name="d",
+        steps=(TypeText("ab", char_delay_ms=100), Pause(2.0), Screenshot("s")),
+    )
+    # 500 start + 2x100 typing + 2000 pause + 400 screenshot settle + 1000 hold
+    assert estimated_duration(demo) == pytest.approx(4.1)
+
+
+def test_estimated_duration_of_an_empty_script_is_the_hold_alone():
+    assert estimated_duration(DemoScript(id=1, name="d", steps=())) == pytest.approx(1.5)
