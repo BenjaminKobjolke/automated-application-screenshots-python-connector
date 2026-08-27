@@ -206,6 +206,11 @@ tempCodeRunnerFile.py
 # Temporary Git commit message file
 tmp/commit_msg.tmp
 
+# Local AI workspace files
+.claude/
+claude-plans/
+/PLAN_*.md
+
 # Ruff stuff:
 .ruff_cache/
 
