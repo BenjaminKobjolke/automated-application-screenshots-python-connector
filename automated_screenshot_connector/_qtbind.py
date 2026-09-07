@@ -53,7 +53,7 @@ __all__ = [
 ]
 
 # Every keyboard-modifier bit, for un-packing a PyQt5 combination.
-_MODIFIER_MASK = int(
+_MODIFIERS = (
     Qt.KeyboardModifier.ShiftModifier
     | Qt.KeyboardModifier.ControlModifier
     | Qt.KeyboardModifier.AltModifier
@@ -61,6 +61,11 @@ _MODIFIER_MASK = int(
     | Qt.KeyboardModifier.KeypadModifier
     | Qt.KeyboardModifier.GroupSwitchModifier
 )
+# ``.value``, not ``int()``: PySide6 6.9+ builds Qt flags on Python's enum.Flag,
+# where int() raises TypeError. PyQt5's flags carry ``.value`` too, so this is the
+# spelling both bindings answer - the getattr only covers an older PySide6 whose
+# flags are plain ints.
+_MODIFIER_MASK = int(getattr(_MODIFIERS, "value", _MODIFIERS))
 
 
 def split_combo(sequence: Any, index: int = 0) -> tuple[Any, Any]:

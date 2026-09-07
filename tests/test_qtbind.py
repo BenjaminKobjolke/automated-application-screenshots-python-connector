@@ -5,6 +5,7 @@ branches are exercised with stand-ins. What is actually under test is the one
 thing the bindings disagree on: how a QKeySequence combination unpacks.
 """
 
+import enum
 import importlib
 import sys
 import types
@@ -148,3 +149,29 @@ def test_no_binding_is_an_actionable_import_error(monkeypatch):
     monkeypatch.delitem(sys.modules, "automated_screenshot_connector._qtbind", raising=False)
     with pytest.raises(ImportError, match="PySide6 or PyQt5"):
         importlib.import_module("automated_screenshot_connector._qtbind")
+
+
+def test_pyside6_flag_modifiers_still_yield_a_mask(monkeypatch):
+    """PySide6 6.9+ builds Qt flags on ``enum.Flag``, where ``int(flags)`` raises.
+
+    The mask is only *used* by the PyQt5 branch, but it is built at import time
+    for both - so getting this wrong makes ``automated_screenshot_connector.qt``
+    unimportable on a current PySide6, which is how it was found.
+    """
+
+    class _FlagModifier(enum.Flag):
+        NoModifier = 0
+        ShiftModifier = SHIFT
+        ControlModifier = CONTROL
+        AltModifier = ALT
+        MetaModifier = META
+        KeypadModifier = KEYPAD
+        GroupSwitchModifier = GROUP_SWITCH
+
+    with pytest.raises(TypeError):  # the spelling the fix replaced
+        int(_FlagModifier.ShiftModifier | _FlagModifier.ControlModifier)
+    monkeypatch.setattr(_FakeQt, "KeyboardModifier", _FlagModifier)
+
+    qtbind = _install_fake_binding(monkeypatch, "PySide6")
+
+    assert qtbind._MODIFIER_MASK == SHIFT | CONTROL | ALT | META | KEYPAD | GROUP_SWITCH
