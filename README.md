@@ -13,7 +13,7 @@ recording tool. Implements the automation contract (see that repo's
 | `automated_screenshot_connector.steps` | stdlib | Step model (`TypeText`, `Pause`, `Command`, `Screenshot`, `PressKey`), `DemoScript`, `flatten` scheduler, `localize_script` (fills `{placeholder}`s from the `--automation-demo-texts` JSON), `estimated_duration` |
 | `automated_screenshot_connector.registry` | stdlib | `DemoRegistry` — id → script lookup, demos generated on demand by a factory, `UnknownDemoError` listing the available ids |
 | `automated_screenshot_connector.client` | stdlib | `DemoClient` — sends `demo_started`/`screenshot`/`demo_ended` JSON events; no-op without a port |
-| `automated_screenshot_connector.args` | stdlib | `parse_demo_args(argv) -> (DemoOptions, leftover_args)` — consumes only `--automation-demo*` options, incl. `--automation-demo-language` (per-run UI language, `options.demo_language`) |
+| `automated_screenshot_connector.args` | stdlib | `is_demo_argv(argv)` (is this a demo run?), `DEMO_FLAG`, `parse_demo_args(argv) -> (DemoOptions, leftover_args)` — consumes only `--automation-demo*` options, incl. `--automation-demo-language` (per-run UI language, `options.demo_language`) |
 | `automated_screenshot_connector.qt` | PySide6 or PyQt5 (yours) | `DemoPlayer` (types into a `QPlainTextEdit` via QTimer chain), `KeyEventDemoPlayer` (posts real `QKeyEvent`s to the focused widget, so command palettes and modal dialogs work) + `prepare_demo_settings` (wiped temp-INI QSettings namespace, seeds the pairs loaded from `--automation-demo-settings`) |
 
 The library has **no runtime dependencies**. `qt` imports a Qt binding only

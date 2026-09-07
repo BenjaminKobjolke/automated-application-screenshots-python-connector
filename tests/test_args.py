@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from automated_screenshot_connector.args import parse_demo_args
+from automated_screenshot_connector.args import is_demo_argv, parse_demo_args
 
 
 def write_settings(tmp_path: Path, data: object) -> str:
@@ -133,3 +133,14 @@ def test_settings_file_without_demo_errors(tmp_path: Path) -> None:
 def test_demo_options_without_demo_error(argv: list[str]) -> None:
     with pytest.raises(SystemExit):
         parse_demo_args(argv)
+
+
+def test_is_demo_argv_spots_the_flag():
+    assert is_demo_argv(["--automation-demo", "1"])
+    assert is_demo_argv(["--gui", "--automation-demo=2", "5m"])
+
+
+def test_is_demo_argv_ignores_a_run_that_is_not_a_demo():
+    assert not is_demo_argv(["--gui", "5m"])
+    # The sub-options alone are not a demo run: parse_demo_args rejects them.
+    assert not is_demo_argv(["--automation-demo-port", "51942"])

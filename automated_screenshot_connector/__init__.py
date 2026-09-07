@@ -6,7 +6,12 @@ two players and the demo QSettings bootstrap; it works with PySide6 or
 PyQt5, whichever the app has.
 """
 
-from automated_screenshot_connector.args import DemoOptions, parse_demo_args
+from automated_screenshot_connector.args import (
+    DEMO_FLAG,
+    DemoOptions,
+    is_demo_argv,
+    parse_demo_args,
+)
 from automated_screenshot_connector.client import DemoClient
 from automated_screenshot_connector.registry import (
     DemoRegistry,
@@ -46,6 +51,7 @@ __all__ = [
     "Command",
     "CustomStep",
     "DemoClient",
+    "DEMO_FLAG",
     "DemoOptions",
     "DemoRegistry",
     "DemoScript",
@@ -64,5 +70,6 @@ __all__ = [
     "estimated_duration",
     "flatten",
     "localize_script",
+    "is_demo_argv",
     "parse_demo_args",
 ]
