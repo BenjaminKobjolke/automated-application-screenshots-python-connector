@@ -60,9 +60,10 @@ script = REGISTRY.get(options.demo, names=installed_themes())
 Five things every app has to get right, and each one is invisible until it
 ruins a take:
 
-1. **Detect the flag before anything else initializes.** Sniff raw `sys.argv`
-   for `--automation-demo` at the top of your entry point — earlier than
-   argparse, config loading or single-instance handling.
+1. **Detect the flag before anything else initializes.** `is_demo_argv(sys.argv)`
+   at the top of your entry point — earlier than argparse, config loading or
+   single-instance handling. (`DEMO_FLAG` is the flag itself, if you need the
+   string; neither costs a Qt import.)
 2. **Bypass single-instance forwarding.** If an instance is already running,
    the usual "forward the arguments and exit" path swallows the demo launch and
    the tool records the wrong window (or times out).
@@ -97,9 +98,13 @@ See also the `KeyEventDemoPlayer` size gotcha below.
   `TypeText` inserts via the text cursor; `PressKey` is not supported.
 - **`KeyEventDemoPlayer(window, client, script, hwnd)`** — for shortcut-driven
   apps (command palettes, modal search dialogs; e.g. FastFileViewer). Every
-  `TypeText` char and `PressKey` chord is posted as a real `QKeyEvent` to
-  `QApplication.focusWidget()`, so modal `exec()` dialogs receive input too
-  (QTimers keep firing inside nested modal loops).
+  `TypeText` char and `PressKey` chord is posted as a real `QKeyEvent` to the
+  window's own focus widget, so modal `exec()` dialogs receive input too
+  (QTimers keep firing inside nested modal loops). `start()` raises and
+  activates the window first: the recording tool pins the window's z-order but
+  does not reliably activate it, and `QApplication.focusWidget()` is `None`
+  while the window is inactive — which used to send every key to the top-level
+  window and record an app doing nothing.
 
 Both players work with **PySide6 or PyQt5** — whichever your app already
 has. The two bindings disagree on exactly one thing (how a `QKeySequence`
@@ -128,9 +133,12 @@ Two hard-won gotchas for `KeyEventDemoPlayer` apps:
   first show pass can re-lay the window out to Qt's screen-derived default and
   discard a pre-show `resize()`; later UI appearing (e.g. a status bar) can
   grow the window and drift the recording off the configured aspect ratio.
-- **Leave the app closable without prompts**: if a demo mutates a document,
-  discard pending changes in the player's finish hook — otherwise the
-  end-of-demo quit blocks on an unsaved-changes dialog.
+- **You do not have to be closable, but you do have to be interruptible**: the
+  players end the run with `QCoreApplication.exit(0)`, not `QApplication.quit()`,
+  because since Qt 6.5 `quit()` closes the windows first and any window that
+  ignores its close event cancels the whole quit — the app then lingers until
+  the tool kills it 10 s later. Pass `exit_when_done=False` to keep the app
+  alive after the demo (a manual preview, say), and do the ending yourself.
 
 ## Guidelines
 

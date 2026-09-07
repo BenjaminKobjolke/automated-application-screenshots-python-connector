@@ -76,25 +76,26 @@ def prepare_demo_settings(app_name: str, settings: Iterable[tuple[str, str]]) ->
     seeded.sync()
 
 
-class DemoPlayer(QObject):
-    """Plays one DemoScript against a QPlainTextEdit, then quits the app.
+class _Player(QObject):
+    """The half of a player that is not about how keys are delivered: schedule
+    the actions, report the demo's start and end, take the app down at the end.
 
-    Drives everything through single-shot QTimers so the event loop never
-    blocks and live updates/painting happen exactly as with human typing.
+    Subclasses hand up their parent widget and implement ``_execute``.
     """
 
     def __init__(
         self,
-        input_edit: QPlainTextEdit,
+        parent: QWidget,
         client: DemoClient,
         script: DemoScript,
         hwnd: int | None,
+        exit_when_done: bool,
     ) -> None:
-        super().__init__(input_edit)
-        self._input = input_edit
+        super().__init__(parent)
         self._client = client
         self._script = script
         self._hwnd = hwnd
+        self._exit_when_done = exit_when_done
         self._actions = flatten(script.steps)
         self._index = 0
 
@@ -112,6 +113,44 @@ class DemoPlayer(QObject):
         delay, action = self._actions[self._index]
         self._index += 1
         QTimer.singleShot(delay, lambda: self._execute(action))
+
+    def _execute(self, action: Action) -> None:
+        raise NotImplementedError
+
+    def _finish(self) -> None:
+        """Report the demo as over, then take the app down after the final hold.
+
+        ``QCoreApplication.exit``, not ``QApplication.quit``: since Qt 6.5
+        ``quit()`` closes the windows first and **any** window that ignores its
+        close event cancels the whole quit - a confirm-on-close, an
+        unsaved-changes prompt or a guarded fullscreen window then leaves the app
+        running until the recording tool kills it. ``exit()`` ends the event loop
+        the app is actually in.
+        """
+        self._client.send_ended(self._script.id)
+        self._client.close()
+        if not self._exit_when_done or QApplication.instance() is None:
+            return
+        QTimer.singleShot(END_HOLD_MS, lambda: QCoreApplication.exit(0))
+
+
+class DemoPlayer(_Player):
+    """Plays one DemoScript against a QPlainTextEdit, then ends the app.
+
+    Drives everything through single-shot QTimers so the event loop never
+    blocks and live updates/painting happen exactly as with human typing.
+    """
+
+    def __init__(
+        self,
+        input_edit: QPlainTextEdit,
+        client: DemoClient,
+        script: DemoScript,
+        hwnd: int | None,
+        exit_when_done: bool = True,
+    ) -> None:
+        super().__init__(input_edit, client, script, hwnd, exit_when_done)
+        self._input = input_edit
 
     def _execute(self, action: Action) -> None:
         if isinstance(action, InsertChar):
@@ -133,21 +172,14 @@ class DemoPlayer(QObject):
         event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier)
         QApplication.postEvent(self._input, event)
 
-    def _finish(self) -> None:
-        self._client.send_ended(self._script.id)
-        self._client.close()
-        instance = QApplication.instance()
-        if instance is not None:
-            QTimer.singleShot(END_HOLD_MS, instance.quit)
 
-
-class KeyEventDemoPlayer(QObject):
+class KeyEventDemoPlayer(_Player):
     """Plays a DemoScript by posting real key events to the focused widget.
 
     For shortcut-driven apps (command palettes, search dialogs, viewers):
-    TypeText chars and PressKey chords arrive as QKeyEvents at
-    ``QApplication.focusWidget()``, so modal ``exec()`` dialogs receive them
-    too - QTimers keep firing inside nested modal event loops.
+    TypeText chars and PressKey chords arrive as QKeyEvents at the window's own
+    focus widget, so modal ``exec()`` dialogs receive them too - QTimers keep
+    firing inside nested modal event loops.
 
     Subclass and override ``handle_step`` to execute app-specific steps; any
     step type ``flatten`` doesn't know arrives there wrapped unchanged.
@@ -159,18 +191,19 @@ class KeyEventDemoPlayer(QObject):
         client: DemoClient,
         script: DemoScript,
         hwnd: int | None,
+        exit_when_done: bool = True,
     ) -> None:
-        super().__init__(window)
+        super().__init__(window, client, script, hwnd, exit_when_done)
         self._window = window
-        self._client = client
-        self._script = script
-        self._hwnd = hwnd
-        self._actions = flatten(script.steps)
-        self._index = 0
         self._check_chords()
 
     def start(self) -> None:
-        QTimer.singleShot(START_DELAY_MS, self._begin)
+        # The recording tool pins the window's z-order but does not activate it
+        # (SetForegroundWindow is unreliable and its topmost call passes
+        # SWP_NOACTIVATE), so ask for activation here - see _target.
+        self._window.raise_()
+        self._window.activateWindow()
+        super().start()
 
     def handle_step(self, step: object) -> None:
         """Execute an app-defined step. Default: unknown steps are an error."""
@@ -181,18 +214,6 @@ class KeyEventDemoPlayer(QObject):
         for _, action in self._actions:
             if isinstance(action, SendKey):
                 self._parse_chord(action.chord)
-
-    def _begin(self) -> None:
-        self._client.send_started(self._script.id, self._hwnd)
-        self._advance()
-
-    def _advance(self) -> None:
-        if self._index >= len(self._actions):
-            self._finish()
-            return
-        delay, action = self._actions[self._index]
-        self._index += 1
-        QTimer.singleShot(delay, lambda: self._execute(action))
 
     def _execute(self, action: Action) -> None:
         if isinstance(action, InsertChar):
@@ -209,7 +230,14 @@ class KeyEventDemoPlayer(QObject):
         self._advance()
 
     def _target(self) -> QWidget:
-        return QApplication.focusWidget() or self._window
+        """The widget a key belongs to: the window's own focus child.
+
+        ``QApplication.focusWidget()`` answers ``None`` whenever the window is not
+        the *active* one, and every key would then land on the top-level window
+        instead - a demo that plays to the end having done nothing.
+        ``QWidget.focusWidget()`` answers either way.
+        """
+        return self._window.focusWidget() or self._window
 
     def _send_char(self, ch: str) -> None:
         # Real press+release carrying the char as text, so line edits and
@@ -230,10 +258,3 @@ class KeyEventDemoPlayer(QObject):
     def _post(self, target: QWidget, key: Any, mods: Any, text: str = "") -> None:
         QApplication.postEvent(target, QKeyEvent(QEvent.Type.KeyPress, key, mods, text))
         QApplication.postEvent(target, QKeyEvent(QEvent.Type.KeyRelease, key, mods, text))
-
-    def _finish(self) -> None:
-        self._client.send_ended(self._script.id)
-        self._client.close()
-        instance = QApplication.instance()
-        if instance is not None:
-            QTimer.singleShot(END_HOLD_MS, instance.quit)
