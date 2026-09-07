@@ -1,6 +1,6 @@
 [project]
 name = "automated-screenshot-connector"
-version = "0.6.0"
+version = "0.7.0"
 description = "App-side connector for the automated-application-screenshots demo recording tool: step model, demo registry, socket client, CLI args, and optional Qt players (PySide6 or PyQt5)."
 readme = "README.md"
 requires-python = ">=3.10"
