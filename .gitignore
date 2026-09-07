@@ -210,6 +210,8 @@ tmp/commit_msg.tmp
 .claude/
 claude-plans/
 /PLAN_*.md
+/PLAN.md
+/HANDOFF.md
 
 # Ruff stuff:
 .ruff_cache/
