@@ -226,3 +226,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+tickets/
+graphify-out/
+code_analysis_results/
+.reasonix/
