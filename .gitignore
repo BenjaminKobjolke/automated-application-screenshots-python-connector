@@ -228,5 +228,6 @@ __marimo__/
 .streamlit/secrets.toml
 tickets/
 graphify-out/
+coding-rules.json
 code_analysis_results/
 .reasonix/

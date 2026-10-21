@@ -21,6 +21,7 @@ build-backend = "hatchling.build"
 packages = ["automated_screenshot_connector"]
 
 [tool.ruff]
+extend-exclude = ["*.md"]
 line-length = 100
 target-version = "py310"
 
