@@ -6,6 +6,7 @@
     "tools\\run_tests.bat"
   ],
   "command_check_scripts": [
+    "graphify_update.bat",
     "run_tests.bat"
   ],
   "analysis_commands_seen": {
@@ -13,5 +14,10 @@
       "run_tests.bat"
     ],
     "tests": true
+  },
+  "analysis_command_states": {
+    "tools\\run_tests.bat": {
+      "test": "green"
+    }
   }
 }
