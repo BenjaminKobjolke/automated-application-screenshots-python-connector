@@ -19,5 +19,6 @@
     "tools\\run_tests.bat": {
       "test": "green"
     }
-  }
+  },
+  "analysis_code_quality_answered": true
 }
