@@ -27,3 +27,22 @@ they are intentionally referenced, not imported.
 
 
 graphify scan root: `automated_screenshot_connector/` — rebuild with `/graphify automated_screenshot_connector --directed`.
+
+## Code Analysis
+
+Two analysis modes — use the changed-files run after implementing a feature, finishing a plan,
+or fixing a bug:
+
+```bash
+powershell -Command "cd 'D:\GIT\BenjaminKobjolke\automated-application-screenshots-python-connector'; cmd /c '.\tools\analyze_changed_and_new_files.bat'"
+```
+
+This uses `--only-changed`, so reports include new or modified files only. The full run is:
+
+```bash
+powershell -Command "cd 'D:\GIT\BenjaminKobjolke\automated-application-screenshots-python-connector'; cmd /c '.\tools\analyze_code.bat'"
+```
+
+Use the full run for explicit audits, before releases or merges, after shared-code refactors, or when
+the working tree is clean. Results go to `code_analysis_results/` as per-rule CSV files. Fix findings
+in changed files before considering the work complete.
