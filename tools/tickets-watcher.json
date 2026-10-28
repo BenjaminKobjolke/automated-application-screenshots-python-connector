@@ -1,10 +1,11 @@
 {
   "files": {
-    "TICKETS_WATCHER_COMMANDS.md": 2
+    "TICKETS_WATCHER_COMMANDS.md": 3
   },
   "analysis_commands": [
     "tools\\run_tests.bat",
-    "tools\\analyze_changed_and_new_files.bat"
+    "tools\\analyze_changed_and_new_files.bat",
+    "tools\\analyze_code.bat"
   ],
   "analysis_command_kinds": {
     "tools\\run_tests.bat": "test",
@@ -21,6 +22,12 @@
   ],
   "analysis_commands_seen": {
     "scripts": [
+      "analyze_changed_and_new_files.bat",
+      "analyze_code.bat",
+      "analyze_code_config.bat",
+      "analyze_code_config.example.bat",
+      "fix_ruff_issues.bat",
+      "graphify_update.bat",
       "run_tests.bat"
     ],
     "tests": true
@@ -33,5 +40,7 @@
       "code_quality": "green"
     }
   },
-  "analysis_code_quality_answered": true
+  "analysis_code_quality_answered": true,
+  "analysis_format_command": "tools/fix_ruff_issues.bat",
+  "project_id": 12313
 }
