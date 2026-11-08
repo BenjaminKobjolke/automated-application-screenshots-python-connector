@@ -146,6 +146,11 @@ Two hard-won gotchas for `KeyEventDemoPlayer` apps:
   with a `Pause(1.0)` so the recording doesn't cut off abruptly.
 - **Screenshot names** must be filesystem-friendly and unique within a demo —
   they become `<name>.png` in the demo's output folder.
+- **Send app-rendered stills when needed.** A custom player for an app that
+  renders its own window can call `client.send_screenshot(name, png=<PNG bytes>)`;
+  the tool saves those bytes directly and does not need a readable desktop for
+  that still. This requires the tool's app-rendered screenshot support; older
+  tools ignore the field and capture the window as usual.
 - **Set up state, then screenshot**: a demo can exist purely to arrange the UI
   for stills — type, `Screenshot`, `Command("/clear")`, type the next state,
   `Screenshot` again.
