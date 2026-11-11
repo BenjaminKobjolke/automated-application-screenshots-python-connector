@@ -151,6 +151,12 @@ Two hard-won gotchas for `KeyEventDemoPlayer` apps:
   the tool saves those bytes directly and does not need a readable desktop for
   that still. This requires the tool's app-rendered screenshot support; older
   tools ignore the field and capture the window as usual.
+- **Target another window for one still.** Call
+  `client.send_screenshot(name, hwnd=<native window handle>)` to have the tool
+  capture that window instead of the one from `demo_started`, such as a second
+  top-level window opened by the app. A `png` takes precedence over `hwnd`;
+  this requires the tool's per-still window support, while older tools ignore
+  the field and capture the demo window.
 - **Set up state, then screenshot**: a demo can exist purely to arrange the UI
   for stills — type, `Screenshot`, `Command("/clear")`, type the next state,
   `Screenshot` again.

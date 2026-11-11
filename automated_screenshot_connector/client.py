@@ -2,7 +2,8 @@
 
 Protocol (see the tool's docs/AUTOMATION_INTERFACE.md): one JSON object per
 newline-terminated UTF-8 line, client -> server only.
-A ``screenshot`` event may include an inline base64 ``png``.
+A ``screenshot`` event may include an inline base64 ``png`` or a target window
+``hwnd``.
 
 Without a port (manual runs) or on any socket failure the client degrades to a
 no-op so the demo always keeps playing visually.
@@ -49,11 +50,16 @@ class DemoClient:
             payload["hwnd"] = hwnd
         self._send(payload)
 
-    def send_screenshot(self, name: str, png: bytes | None = None) -> None:
+    def send_screenshot(
+        self, name: str, png: bytes | None = None, hwnd: int | None = None
+    ) -> None:
         payload: dict[str, object] = {"event": "screenshot", "name": name}
         if png is not None:
             # App-rendered bytes let the tool save a still without capturing the desktop.
             payload["png"] = base64.b64encode(png).decode("ascii")
+        if hwnd is not None:
+            # The tool can capture this window instead of the demo_started window.
+            payload["hwnd"] = hwnd
         self._send(payload)
 
     def send_ended(self, demo_id: int) -> None:

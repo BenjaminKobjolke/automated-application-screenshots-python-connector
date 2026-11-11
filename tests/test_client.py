@@ -25,6 +25,7 @@ def test_null_client_without_port_noops() -> None:
     client = DemoClient(port=None)
     client.send_started(1, hwnd=1234)
     client.send_screenshot("x")
+    client.send_screenshot("x", hwnd=1)
     client.send_screenshot("x", png=b"\x89PNG")
     client.send_ended(1)
     client.close()
@@ -85,8 +86,9 @@ def test_screenshot_without_png_omits_key() -> None:
     thread = collect_lines(server, received)
 
     client = DemoClient(port=port)
+    client.send_screenshot("second", hwnd=123)
     client.send_screenshot("basic")
-    client.send_screenshot("basic", png=None)
+    client.send_screenshot("basic", hwnd=None)
     client.close()
     thread.join(timeout=5)
     server.close()
@@ -94,6 +96,7 @@ def test_screenshot_without_png_omits_key() -> None:
     lines = b"".join(received).decode("utf-8").strip().splitlines()
     events = [json.loads(line) for line in lines]
     assert events == [
+        {"event": "screenshot", "name": "second", "hwnd": 123},
         {"event": "screenshot", "name": "basic"},
         {"event": "screenshot", "name": "basic"},
     ]
